@@ -7,11 +7,12 @@ from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
 from api.utils import APIException, generate_sitemap
-from api.models import db
+from api.models import db , User
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
 from werkzeug.security import generate_password_hash, check_password_hash
+
 
 #from models import Person
 
@@ -63,6 +64,27 @@ def serve_any_other_file(path):
     response = send_from_directory(static_file_dir, path)
     response.cache_control.max_age = 0 # avoid cache memory
     return response
+
+@app.route('/signup', methods=['POST'])
+def handle_hello():
+
+   data = request.get_json()
+
+   user = User.query.filter_of(email=data['email']).first()
+   if user:
+       return jsonify(message= 'user alredy exist'), 400
+   
+   hash_password = generate_password_hash(data['password'], method='sha256')
+
+   newuser = User(email=data['email'], password=hash_password, is_active=True)
+   db.session.add(newuser)
+   db.session.commit()
+
+   auth_token = encode_auth_token(newuser.id)
+   return jsonify(auth_token=auth_token), 201
+
+
+
 
 
 # this only runs if `$ python src/main.py` is executed
