@@ -1,6 +1,7 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
+
 import os
 from flask import Flask, request, jsonify, url_for, send_from_directory
 from flask_migrate import Migrate
@@ -12,6 +13,8 @@ from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
 from werkzeug.security import generate_password_hash, check_password_hash
+import jwt 
+import datetime
 
 
 #from models import Person
@@ -44,6 +47,19 @@ setup_commands(app)
 # Add all endpoints form the API with a "api" prefix
 app.register_blueprint(api, url_prefix='/api')
 
+#Function to encode a token
+def encode_auth_token(user_id):
+    try:
+        payload ={
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
+            'iat': datetime.datetime.utcnow(),
+            'sub': user_id
+        }
+        return jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+    except Exception as e:
+        return e
+
+
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
@@ -65,23 +81,28 @@ def serve_any_other_file(path):
     response.cache_control.max_age = 0 # avoid cache memory
     return response
 
+@app.route('/user', methods=['GET'])
+def handle_user():
+    users = User.query.all() # SELECT * FROM items
+    return jsonify([use.serialize() for use in users])
+
 @app.route('/signup', methods=['POST'])
-def handle_hello():
+def handle_signup():
 
    data = request.get_json()
 
-   user = User.query.filter_of(email=data['email']).first()
+   user = User.query.filter_by(email=data['email']).first()
    if user:
        return jsonify(message= 'user alredy exist'), 400
+   hashed_password = generate_password_hash(data['password'], method='sha256')
    
-   hash_password = generate_password_hash(data['password'], method='sha256')
 
-   newuser = User(email=data['email'], password=hash_password, is_active=True)
-   db.session.add(newuser)
+   new_user = User(email=data['email'], password=hashed_password, is_active=True)
+   db.session.add(new_user)
    db.session.commit()
 
-   auth_token = encode_auth_token(newuser.id)
-   return jsonify(auth_token=auth_token), 201
+   
+   return jsonify(new_user.email), 201
 
 
 
