@@ -12,9 +12,10 @@ from api.models import db , User
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
-from werkzeug.security import generate_password_hash, check_password_hash
 import jwt 
 import datetime
+import bcrypt
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 #from models import Person
@@ -83,7 +84,7 @@ def serve_any_other_file(path):
 
 @app.route('/user', methods=['GET'])
 def handle_user():
-    users = User.query.all() # SELECT * FROM items
+    users = User.query.all() 
     return jsonify([use.serialize() for use in users])
 
 @app.route('/signup', methods=['POST'])
@@ -94,19 +95,17 @@ def handle_signup():
    user = User.query.filter_by(email=data['email']).first()
    if user:
        return jsonify(message= 'user alredy exist'), 400
-   hashed_password = generate_password_hash(data['password'], method='sha256')
    
-
-   new_user = User(email=data['email'], password=hashed_password, is_active=True)
+   pwd = b'data["password"]'
+   mysalt = bcrypt.gensalt()
+   pwd_hash = bcrypt.hashpw(pwd, mysalt)
+  
+   new_user = User(email=data['email'], password= pwd_hash, is_active=True)
    db.session.add(new_user)
    db.session.commit()
 
-   
-   return jsonify(new_user.email), 201
-
-
-
-
+   aut_token = encode_auth_token(new_user.id)
+   return jsonify(aut_token = aut_token), 201
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
